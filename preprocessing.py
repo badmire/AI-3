@@ -22,17 +22,21 @@ if __name__ == "__main__":
     test_vocab = {"good":dict(),"bad":dict()}
     total_training_words = 0
     total_test_words = 0
+    total_training_good = 0
+    total_training_bad = 0
 
     for sentence in training_set_token:
         if int(sentence[-1]):
-            for word in sentence[:-1]:
+            total_training_good += 1
+            for word in set(sentence[:-1]):
                 total_training_words += 1
                 if word in vocab["good"]:
                     vocab["good"][word] += 1
                 else:
                     vocab["good"][word] = 1
         else:
-            for word in sentence[:-1]:
+            total_training_bad += 1
+            for word in set(sentence[:-1]):
                 total_training_words += 1
                 if word in vocab["bad"]:
                     vocab["bad"][word] += 1
@@ -56,11 +60,21 @@ if __name__ == "__main__":
                     test_vocab["bad"][word] = 1
 
     all_words = sorted(set(list(vocab["bad"].keys()) + list(vocab["good"].keys())))
+    all_test_words = sorted(set(list(test_vocab["bad"].keys()) + list(test_vocab["good"].keys())))
 
     # Sort it
     vocab["good"] = {key:vocab["good"][key] for key in sorted(vocab["good"].keys())}
     vocab["bad"] = {key:vocab["bad"][key] for key in sorted(vocab["bad"].keys())}
 
+    with open("./unique_training.txt","w") as target:
+        for word in all_words:
+            if word not in all_test_words:
+                target.write(word + '\n')
+
+    with open("./unique_test.txt","w") as target:
+        for word in all_test_words:
+            if word not in all_words:
+                target.write(word + '\n')
 
     line_1 = ""
     line_2 = ""
@@ -69,12 +83,12 @@ if __name__ == "__main__":
     for word in all_words:
         line_1 += word+","
         
-        if word in vocab["bad"] or word in test_vocab["bad"]:
+        if word in vocab["bad"]:
             line_2 += "1,"
         else:
             line_2 += "0,"
 
-        if word in vocab["good"] or word in test_vocab["good"]:
+        if word in vocab["good"]:
             line_3 += "1,"
         else:
             line_3 += "0,"
@@ -83,29 +97,56 @@ if __name__ == "__main__":
     line_2 += "0\n"
     line_3 += "1\n"
 
-    target = open("./test_out","w")
+    target = open("./preprocessed_train.txt","w")
     target.write(line_1)
     target.write(line_2)
     target.write(line_3)
     target.close()
 
-    total_good_training_words = 0
-    total_bad_training_words = 0
-    for word in vocab["good"]:
-        total_good_training_words += vocab["good"][word]
+    line_1 = ""
+    line_2 = ""
+    line_3 = ""
+
+    for word in all_words:
+        line_1 += word+","
+        
+        if word in test_vocab["bad"]:
+            line_2 += "1,"
+        else:
+            line_2 += "0,"
+
+        if word in test_vocab["good"]:
+            line_3 += "1,"
+        else:
+            line_3 += "0,"
+
+    line_1 += "classlabel\n"
+    line_2 += "0\n"
+    line_3 += "1\n"
+
+    target = open("./preprocessed_test.txt","w")
+    target.write(line_1)
+    target.write(line_2)
+    target.write(line_3)
+    target.close()
+
+    # total_good_training_words = 0
+    # total_bad_training_words = 0
+    # for word in vocab["good"]:
+    #     total_good_training_words += vocab["good"][word]
     
-    for word in vocab["bad"]:
-        total_bad_training_words += vocab["bad"][word]
+    # for word in vocab["bad"]:
+    #     total_bad_training_words += vocab["bad"][word]
 
 
     # Training
 
     # Probablity of class variable
-    CV_total = (len(all_words))
-    CV_true = len(vocab["good"])
-    CV_false = len(vocab["bad"])
-    pCV_false = total_bad_training_words/total_training_words
-    pCV_true = total_good_training_words/total_training_words
+    # total_words = (len(all_words))
+    # total_good_words = len(vocab["good"])
+    # CV_false = len(vocab["bad"])
+    pCV_false = math.log(total_training_bad/(total_training_bad+total_training_good))
+    pCV_true = math.log(total_training_good/(total_training_bad+total_training_good))
 
     # Calculate probability of parameters
 
@@ -113,39 +154,24 @@ if __name__ == "__main__":
     predictions = []
 
     for sentence in test_set_token:
-        current_good = 1
-        current_bad = 1
-        unknown = []
+        current_good = pCV_true
+        current_bad = pCV_false
         for word in sentence[:-1]:
             if word in vocab["good"]:
                 # probability of word given positive review
-                current_good *= math.log((vocab["good"][word] / CV_true) / CV_true)
+                current_good += math.log(((vocab["good"][word]) / total_training_good)*((total_training_good-vocab["good"][word])/total_training_good))
             else:
-                unknown.append(word)
-
+                current_good += math.log(1 / total_training_good)
             if word in vocab["bad"]:
                 # probability of word given negative review
-                current_bad *= math.log((vocab["bad"][word] / CV_true) / CV_true)
+                current_bad += math.log(((vocab["bad"][word]) / total_training_bad)*((total_training_bad-vocab["bad"][word])/total_training_bad))
             else:
-                unknown.append(word)
+                current_bad += math.log(1 / total_training_bad)
 
-                # fGf = (CV_total - vocab["bad"][word])/CV_false # false given false
-                # fGt = (CV_total - vocab["bad"][word])/CV_true # false given true
-                # tGf = (vocab["bad"][word])/CV_false # true given false
-                # tGt = (vocab["bad"][word])/CV_true # true given true
-                # current_good = current_good * (tGt + fGt)
-                # current_bad = current_bad * (tGf + fGf)
-        
-        if len(unknown) == len(sentence[:-1]):
-            predictions.append(-1)
+        if current_good > current_bad:
+            predictions.append(1)
         else:
-            current_bad = current_bad*pCV_true
-            current_good = current_good*pCV_true
-
-            if current_good > current_bad:
-                predictions.append(1)
-            else:
-                predictions.append(0)
+            predictions.append(0)
 
     correct = 0
     wrong = 0
@@ -156,5 +182,5 @@ if __name__ == "__main__":
         elif predictions[i] == int(test_set_token[i][-1]):
             correct += 1
 
-    print(correct,len(test_set_token))
+    print(f"{correct} out of {len(test_set_token)}")
     print(correct/len(test_set_token))

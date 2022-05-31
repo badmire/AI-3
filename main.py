@@ -62,15 +62,6 @@ if __name__ == "__main__":
     vocab["good"] = {key:vocab["good"][key] for key in sorted(vocab["good"].keys())}
     vocab["bad"] = {key:vocab["bad"][key] for key in sorted(vocab["bad"].keys())}
 
-    # with open("./unique_training.txt","w") as target:
-    #     for word in all_words:
-    #         if word not in all_test_words:
-    #             target.write(word + '\n')
-
-    # with open("./unique_test.txt","w") as target:
-    #     for word in all_test_words:
-    #         if word not in all_words:
-    #             target.write(word + '\n')
 
     line_1 = ""
     line_2 = ""
@@ -150,6 +141,7 @@ if __name__ == "__main__":
                 # Case where word does not exist in training set
                 # Uniform Dirichlet Priors are used here to avoid 0 for cases where word does not
                 # exist in the training set.
+                # The *2 is because the UDP are added FIRST, before the 0s are "found" which results in doubling up.
                 current_good += math.log(1 / (total_training_good*2)) # *2 is for both cases, word=True and word=False
             if word in vocab["bad"]:
                 # Probability of word given negative review
@@ -162,6 +154,7 @@ if __name__ == "__main__":
                 # Case where word does not exist in training set
                 # Uniform Dirichlet Priors are used here to avoid 0 for cases where word does not
                 # exist in the training set
+                # The *2 is because the UDP are added FIRST, before the 0s are "found" which results in doubling up.
                 current_bad += math.log(1 / (total_training_bad*2)) # *2 is for both cases, word=True and word=False
 
         # Compare final calculated probability for sentence

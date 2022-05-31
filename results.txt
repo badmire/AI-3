@@ -1,0 +1,8 @@
+Results with testSet.txt
+398 out of 497
+0.8008048289738431
+Results with trainingSet.txt
+482 out of 497
+0.9698189134808853
+
+Execution ran in: 0.04097318649291992
